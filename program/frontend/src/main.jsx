@@ -1,7 +1,8 @@
-import { lazy, StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
-
+import "./index.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+
 import { BrowserRouter, Route, Routes } from "react-router";
 
 const RegisterPage = lazy(() => import("./pages/Register.jsx"));
@@ -15,12 +16,18 @@ const DokumentumokPage = lazy(() => import("./pages/Dokumentumok.jsx"));
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <BrowserRouter>
-      <Routes>
-        <Route element={<HomePage />} path="/Vezerlopult" />
-        <Route element={<ProjektekPage />} path="/Projektek" />
-        <Route element={<MunkatarsakPage />} path="/Munkatarsak" />
-        <Route element={<DokumentumokPage />} path="/Dokumentumok" />
-      </Routes>
+      <Suspense
+        fallback={
+          <div className="text-center mt-5 text-white">Betöltés...</div>
+        }
+      >
+        <Routes>
+          <Route element={<HomePage />} path="/Vezerlopult" />
+          <Route element={<ProjektekPage />} path="/Projektek" />
+          <Route element={<MunkatarsakPage />} path="/Munkatarsak" />
+          <Route element={<DokumentumokPage />} path="/Dokumentumok" />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   </StrictMode>,
 );
