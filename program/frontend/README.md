@@ -1,12 +1,42 @@
-# React + Vite
+# BuildTheTower frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite + React Router. A login/regisztráció a mellékelt asztali látványtervek színeit, elrendezését, építkezési hátterét és magyar feliratait követi, mobilhoz igazított nézettel. A Windows-belépés helyén Google-belépés található.
 
-Currently, two official plugins are available:
+## Indítás
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```powershell
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Nyisd meg: **http://localhost:5173**. A [backend](../backend/README.md) is fusson a 3300-as porton, működő MySQL-lel. A Vite `/api` proxyja összeköti a két projektet; a kliensbe nem kell API-kulcsot tenni.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Elkészült működés
+
+- `/login` és `/register`, továbbá magyar `/bejelentkezes`, `/regisztracio` átirányítások.
+- E-mailes regisztráció, jelszómegerősítés, adatkezelési elfogadás, siker után automatikus belépés.
+- Belépés, jelszó láthatóságkapcsoló, „Emlékezzen rám”, magyar mező- és hálózati hibák, küldés alatti állapot.
+- HttpOnly sütis munkamenet, újratöltés utáni `/me` ellenőrzés, védett útvonalak és kijelentkezés.
+- Google Identity Services bejelentkezés szerveroldali tokenellenőrzéssel. Beállítás: a backend `GOOGLE_CLIENT_ID` változója; kliensazonosító nélkül a gomb jelzi a hiányzó konfigurációt.
+- `/adatvedelem`: új lapon megnyitható fejlesztői tájékoztató. Az éles üzemeltető adatai még kitöltendők.
+- Jelszó-visszaállítási segítség párbeszédablak; e-mailküldő/jelszóreset szolgáltatás még nincs.
+- `/Vezerlopult`: minimális, valódi bejelentkezési állapotot bemutató kezdőlap. A projektek, dokumentumok és munkatársak üzleti moduljai továbbra is fejlesztés alatt állnak.
+
+## Ellenőrzés
+
+```powershell
+npm run build
+npm run test:e2e
+```
+
+A Playwright-tesztek telepített Chrome-ot használnak, asztali (1548×1016) és mobilnézetben. A frontend dev szerverét a teszt automatikusan elindítja; a backend előzetesen fusson **külön tesztadatbázison**. A tesztek egyedi `@example.test` című fiókokat hoznak létre. A képernyőképek és hibás futások trace-ei az ignorált `test-results/` könyvtárba kerülnek. A Google konfiguráció nélküli állapotát ellenőrző teszt üres `GOOGLE_CLIENT_ID` értéket feltételez.
+
+A teljes valódi Google-belépéshez saját Google OAuth kliens és interaktív Google-fiók szükséges; ezt a helyi teszt nem automatizálja. A backend integrációs tesztje külön ellenőrzi a Google-fiók létrehozásának és ütközéskezelésének logikáját helyettesített Google-válasszal.
+
+## Felépítés
+
+`src/pages/` az oldalakat, `src/components/` a megosztott megjelenést, `src/auth/` a munkamenetkezelést, `src/lib/api.js` az API-kéréseket tartalmazza. A projekt további munkaszabályai: [AGENTS.md](AGENTS.md).
+
+A háttér helye és generálási promptja: [ASSETS.md](ASSETS.md). A Google Fonts Inter betűje hálózat nélkül rendszerbetűre vált; a háttérkép helyi fájl.
+
+Éles kiszolgálásnál a `dist/` könyvtárhoz SPA history fallback és `/api` reverse proxy kell. Az `npm run preview` önmagában nem konfigurál éles API-proxyt.

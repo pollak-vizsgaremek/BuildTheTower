@@ -1,5 +1,5 @@
-import React from "react";
+import WorkspacePlaceholder from '../components/WorkspacePlaceholder';
 
 export default function Dokumentumok() {
-  return <div>Dokumentumok</div>;
+  return <WorkspacePlaceholder title="Dokumentumok" />;
 }

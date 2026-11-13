@@ -1,25 +1,18 @@
-import e from "express";
-import cors from "cors";
-import { authRouter } from "./controller/auth.controller.js";
-import "dotenv/config";
-import { sequelize } from "./utils/database.js";
+import { config, validateConfig } from './config.js';
+import { app } from './app.js';
+import { sequelize } from './utils/database.js';
 
-const app = e();
-
-app.use(e.json());
-app.use(
-  cors({
-    origin: ["http://localhost:5173"],
-  }),
-);
-
-app.use("/api/v1/auth", authRouter);
-
-app.listen(3300, async () => {
-  try {
-    await sequelize.sync({alter});
-    console.log("Elindult!");
-  } catch (error) {
-    console.log(error);
-  }
-});
+try {
+  validateConfig();
+  await sequelize.authenticate();
+  // Create missing tables only. Never alter or drop existing application data at startup.
+  await sequelize.sync();
+  const server = app.listen(config.port, () => console.log(`Backend: http://localhost:${config.port}`));
+  const stop = () => server.close(async () => { await sequelize.close(); process.exit(0); });
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
+} catch (error) {
+  console.error(`Nem sikerült elindítani a backendet: ${error.message}`);
+  await sequelize.close();
+  process.exitCode = 1;
+}

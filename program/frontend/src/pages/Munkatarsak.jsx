@@ -1,5 +1,5 @@
-import React from "react";
+import WorkspacePlaceholder from '../components/WorkspacePlaceholder';
 
 export default function Munkatarsak() {
-  return <div>Munkatarsak</div>;
+  return <WorkspacePlaceholder title="Munkatársak" />;
 }

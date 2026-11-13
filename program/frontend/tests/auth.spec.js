@@ -1,0 +1,58 @@
+import { test, expect } from '@playwright/test';
+
+test('registration, session restore, logout, wrong password and remembered login', async ({ page, context }, testInfo) => {
+  const suffix = `${testInfo.project.name}_${Date.now()}`;
+  const email = `${suffix}@example.test`;
+  const password = 'TestPassword123!';
+  await page.goto('/Vezerlopult');
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole('link', { name: 'Regisztráció', exact: true }).click();
+  await page.getByLabel('Felhasználónév', { exact: true }).fill(suffix);
+  await page.getByLabel('E-mail cím', { exact: true }).fill(email);
+  await page.getByLabel('Jelszó', { exact: true }).fill(password);
+  await page.getByLabel('Jelszó megerősítése', { exact: true }).fill('DifferentPassword');
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Regisztráció', exact: true }).click();
+  await expect(page.getByText('A két jelszó nem egyezik.')).toBeVisible();
+  await page.getByLabel('Jelszó megerősítése', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Jelszó megjelenítése', exact: true }).click();
+  await expect(page.getByLabel('Jelszó', { exact: true })).toHaveAttribute('type', 'text');
+  await page.getByRole('button', { name: 'Regisztráció', exact: true }).click();
+  await expect(page).toHaveURL(/\/Vezerlopult$/);
+  await expect(page.getByRole('heading', { name: `Üdvözlünk, ${suffix}!` })).toBeVisible();
+  expect((await context.cookies()).find(cookie => cookie.name === 'btt_session').httpOnly).toBe(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: `Üdvözlünk, ${suffix}!` })).toBeVisible();
+  await page.getByRole('button', { name: 'Kijelentkezés', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect((await context.cookies()).find(cookie => cookie.name === 'btt_session')).toBeUndefined();
+  await page.getByLabel('E-mail cím', { exact: true }).fill(email);
+  await page.getByLabel('Jelszó', { exact: true }).fill('wrongpassword');
+  await page.getByRole('button', { name: 'Bejelentkezés', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Hibás e-mail cím vagy jelszó.');
+  await page.getByLabel('Jelszó', { exact: true }).fill(password);
+  await page.getByLabel('Emlékezzen rám').check();
+  await page.getByRole('button', { name: 'Bejelentkezés', exact: true }).click();
+  await expect(page).toHaveURL(/\/Vezerlopult$/);
+  expect((await context.cookies()).find(cookie => cookie.name === 'btt_session').expires).toBeGreaterThan(Date.now() / 1000 + 6 * 86400);
+});
+
+test('reference layouts, privacy and password help are usable', async ({ page }, testInfo) => {
+  await page.goto('/login');
+  await expect(page.getByRole('heading', { name: 'Bejelentkezés', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Bejelentkezés Google-fiókkal' })).toBeDisabled();
+  await page.screenshot({ path: `test-results/${testInfo.project.name}-login.png`, fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Elfelejtette a jelszavát?' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await page.goto('/register');
+  await expect(page.getByRole('heading', { name: 'Regisztráció', exact: true })).toBeVisible();
+  await page.screenshot({ path: `test-results/${testInfo.project.name}-register.png`, fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('link', { name: /Adatvédelmi nyilatkozatot/ }).click();
+  const privacy = await popup;
+  await expect(privacy.getByRole('heading', { name: 'Adatkezelési tájékoztató' })).toBeVisible();
+});

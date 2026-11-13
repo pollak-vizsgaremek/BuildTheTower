@@ -1,0 +1,74 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+
+test('real MySQL auth lifecycle and error responses', { skip: !process.env.TEST_DB_NAME }, async t => {
+  assert.match(process.env.TEST_DB_NAME, /_test$/, 'Use an isolated database ending in _test.');
+  process.env.DB_NAME = process.env.TEST_DB_NAME;
+  process.env.ACCESS_TOKEN_SECRET = 'integration-test-secret-at-least-32-characters';
+  process.env.GOOGLE_CLIENT_ID = '';
+  const { app } = await import('../../src/app.js');
+  const { sequelize } = await import('../../src/utils/database.js');
+  const { User } = await import('../../src/model/User.model.js');
+  await sequelize.sync();
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/api/v1/auth`;
+  const id = randomUUID().slice(0, 8);
+  const body = { username: `test_${id}`, email: `${id}@example.test`, password: 'TestPassword123!', passwordConfirmation: 'TestPassword123!', acceptPrivacy: true, role: 1 };
+  const googleEmail = `google_${id}@example.test`;
+  t.after(async () => {
+    await User.destroy({ where: { email: [body.email, googleEmail] } });
+    await new Promise(resolve => server.close(resolve));
+    await sequelize.close();
+  });
+  const post = (path, data, headers = {}) => fetch(url + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(data) });
+  assert.equal((await fetch(url + '/me')).status, 401);
+  assert.equal((await post('/register', { ...body, acceptPrivacy: false })).status, 400);
+  assert.equal((await post('/register', body, { Origin: 'https://untrusted.example' })).status, 403);
+  const created = await post('/register', body);
+  assert.equal(created.status, 201);
+  const data = await created.json();
+  assert.equal(data.user.role, 2);
+  assert.equal(data.user.password, undefined);
+  const cookie = created.headers.get('set-cookie');
+  assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /SameSite=Lax/);
+  assert.doesNotMatch(cookie, /Max-Age/);
+  assert.equal((await fetch(url + '/me', { headers: { Cookie: cookie.split(';')[0] } })).status, 200);
+  assert.equal((await post('/register', body)).status, 409);
+  assert.equal((await post('/register', { ...body, email: `other_${body.email}` })).status, 409);
+  assert.equal((await post('/login', { ...body, password: 'wrong' })).status, 401);
+  const signedIn = await post('/login', { ...body, email: body.email.toUpperCase(), rememberMe: true });
+  assert.equal(signedIn.status, 200);
+  assert.match(signedIn.headers.get('set-cookie'), /Max-Age=604800/);
+  const stored = await User.findOne({ where: { email: body.email } });
+  assert.notEqual(stored.password, body.password);
+  assert.equal((await post('/google', { credential: 'fake' })).status, 503);
+  const { config } = await import('../../src/config.js');
+  const { OAuth2Client } = await import('google-auth-library');
+  config.googleClientId = 'test-client.apps.googleusercontent.com';
+  t.mock.method(OAuth2Client.prototype, 'verifyIdToken', async options => {
+    assert.equal(options.audience, config.googleClientId);
+    if (options.idToken === 'invalid') throw new Error('Invalid token');
+    return { getPayload: () => ({ sub: options.idToken === 'collision' ? 'different-sub' : `google-${id}`, email: options.idToken === 'collision' ? body.email : googleEmail, email_verified: true, name: 'Google Teszt' }) };
+  });
+  assert.equal((await post('/google', { credential: 'invalid' })).status, 401);
+  assert.equal((await post('/google', { credential: 'valid' })).status, 400);
+  assert.equal((await post('/google', { credential: 'collision', acceptPrivacy: true })).status, 409);
+  const googleCreated = await post('/google', { credential: 'valid', acceptPrivacy: true });
+  assert.equal(googleCreated.status, 200);
+  assert.equal((await googleCreated.json()).user.fullName, 'Google Teszt');
+  assert.equal((await post('/google', { credential: 'valid' })).status, 200);
+  assert.equal((await post('/login', { email: googleEmail, password: 'anypassword' })).status, 401);
+  const logout = await post('/logout', {});
+  assert.equal(logout.status, 204);
+  assert.match(logout.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/);
+  const malformed = await fetch(url + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{' });
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).message, 'Hibás JSON kérés.');
+  for (let index = 0; index < 31; index++) {
+    const response = await post('/login', {});
+    if (index === 30) assert.equal(response.status, 429);
+  }
+});
